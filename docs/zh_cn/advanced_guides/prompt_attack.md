@@ -7,9 +7,7 @@ OpenCompass 支持[PromptBench](https://github.com/microsoft/promptbench)的提�
 提示词攻击需要依赖 `PromptBench` 中的组件，所以需要先配置好环境。
 
 ```shell
-git clone https://github.com/microsoft/promptbench.git
-pip install textattack==0.3.8
-export PYTHONPATH=$PYTHONPATH:promptbench/
+pip install promptbench==0.0.4 textattack==0.3.8 lru-dict
 ```
 
 ## 如何攻击
@@ -87,10 +85,10 @@ attack = dict(
 
 ### 运行试验
 
-请当运行攻击实验的时候请使用 `--mode infer` 选项，并需要指定`PYTHONPATH`。
+请在运行攻击实验时使用 `--mode infer` 选项。
 
 ```shell
-python run.py configs/eval_attack.py --mode infer
+python run.py examples/eval_attack.py --mode infer
 ```
 
 所有结果都将保存在名为“attack”的文件夹中。

@@ -1,3 +1,4 @@
+import inspect
 import os
 from typing import Any, Callable, Dict, List, Optional
 
@@ -86,8 +87,13 @@ class CascadeEvaluator(BaseEvaluator):
         else:
             # Use rule_evaluator to evaluate a single sample by calling
             # the score method with single-element lists
-            result = self.rule_evaluator.score([prediction], [reference],
-                                               [test_set])
+            score_params = inspect.signature(
+                self.rule_evaluator.score).parameters
+            if 'test_set' in score_params:
+                result = self.rule_evaluator.score([prediction], [reference],
+                                                   test_set=[test_set])
+            else:
+                result = self.rule_evaluator.score([prediction], [reference])
             if 'details' in result and len(result['details']) > 0:
                 return result['details'][0]
             else:
@@ -109,6 +115,9 @@ class CascadeEvaluator(BaseEvaluator):
         """
         if 'prediction' in llm_detail:
             response = llm_detail['prediction'].strip().upper()
+            return response == 'A' or response.startswith('CORRECT')
+        elif 'llm_judge' in llm_detail:
+            response = llm_detail['llm_judge'].strip().upper()
             return response == 'A' or response.startswith('CORRECT')
         elif 'correct' in llm_detail:
             return llm_detail['correct']
@@ -147,9 +156,9 @@ class CascadeEvaluator(BaseEvaluator):
             else:
                 test_item = None
             # Apply prediction postprocessing for each sample
-            [pred] = self.rule_evaluator.pred_postprocess([pred])
+            [pred_rule] = self.rule_evaluator.pred_postprocess([pred])
 
-            result = self.sample_score(pred, ref, test_item)
+            result = self.sample_score(pred_rule, ref, test_item)
             result['evaluation_method'] = 'rule'
             details.append({'rule_evaluation': result})
 
@@ -250,14 +259,17 @@ class CascadeEvaluator(BaseEvaluator):
                 llm_details = llm_results['details']
             else:
                 llm_details = llm_results
+            if isinstance(llm_details, dict):
+                llm_details_iter = llm_details.values()
+            else:
+                llm_details_iter = llm_details
 
             # Initialize counters for accuracy calculation
             final_correct = initial_correct if not self.parallel else 0
             llm_correct = 0
             llm_evaluated = 0
-
             # Update the details for samples that were evaluated by LLM
-            for i, llm_detail in enumerate(llm_details.values()):
+            for i, llm_detail in enumerate(llm_details_iter):
                 # Add dataset replica index to LLM evaluation result
                 llm_detail['dataset_replica_idx'] = self.dataset_replica_idx
 
@@ -335,4 +347,21 @@ class CascadeEvaluator(BaseEvaluator):
                 'details': details,
             }
 
-            return result
+        else:
+            result = {
+                'accuracy': initial_accuracy,
+                'cascade_stats': {
+                    'total_samples': len(predictions),
+                    'rule_correct': initial_correct,
+                    'rule_accuracy': initial_accuracy,
+                    'llm_evaluated': 0,
+                    'llm_correct': 0,
+                    'llm_accuracy': 0.0,
+                    'final_correct': initial_correct,
+                    'final_accuracy': initial_accuracy,
+                    'parallel_mode': self.parallel,
+                },
+                'details': details,
+            }
+
+        return result
